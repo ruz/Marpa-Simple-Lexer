@@ -1,0 +1,14 @@
+Makefile
+Makefile.bak
+Makefile.old
+Makefile.new
+MYMETA.*
+pm_to_blib
+blib/
+MANIFEST.bak
+MANIFEST.new
+MANIFEST.old
+cover_db/
+nytprof/
+*.tar.gz
+*.sw[po]

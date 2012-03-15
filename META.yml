@@ -1,0 +1,27 @@
+---
+abstract: 'simplify lexing with Marpa'
+author:
+  - 'Ruslan Zakirov <Ruslan.Zakirov@gmail.com>'
+build_requires:
+  ExtUtils::MakeMaker: 6.59
+configure_requires:
+  ExtUtils::MakeMaker: 6.59
+distribution_type: module
+dynamic_config: 1
+generated_by: 'Module::Install version 1.06'
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+module_name: Marpa::Simple::Lexer
+name: Marpa-Simple-Lexer
+no_index:
+  directory:
+    - examples
+    - inc
+requires:
+  Marpa::XS: 0
+  perl: 5.10.0
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.01

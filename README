@@ -1,0 +1,259 @@
+NAME
+    Marpa::Simple::Lexer - simplify lexing with Marpa
+
+SYNOPSIS
+        use 5.010;
+        use strict;
+        use warnings;
+        use lib 'lib/';
+
+        use Marpa::XS;
+        use Marpa::Simple::Lexer;
+
+        my $grammar = Marpa::XS::Grammar->new( {
+            actions => 'main',
+            default_action => 'do_what_I_mean',
+            start   => 'query',
+            rules   => [
+                {
+                    lhs => 'query', rhs => [qw(condition)],
+                    min => 1, separator => 'OP', proper => 1, keep => 1,
+                },
+                [ condition => [qw(word)] ],
+                [ condition => [qw(quoted)] ],
+                [ condition => [qw(OPEN-PAREN SPACE? query SPACE? CLOSE-PAREN)] ],
+                [ condition => [qw(NOT condition)] ],
+
+                [ 'SPACE?' => [] ],
+                [ 'SPACE?' => [qw(SPACE)] ],
+            ],
+            lhs_terminals => 0,
+        });
+        $grammar->precompute;
+        my $recognizer = Marpa::XS::Recognizer->new( { grammar => $grammar } );
+
+        use Regexp::Common qw /delimited/;
+
+        my $lexer = Marpa::Simple::Lexer->new(
+            recognizer => $recognizer,
+            input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
+            tokens => {
+                word          => qr{\b\w+\b},
+                'quoted'      => qr[$RE{delimited}{-delim=>qq{\'\"}}],
+                OP            => qr{\s+(OR)\s+|\s+},
+                NOT           => '!',
+                'OPEN-PAREN'  => '(',
+                'CLOSE-PAREN' => ')',
+                'SPACE'       => qr{\s+()},
+            },
+            debug => 1,
+        );
+
+        $lexer->recognize(\*DATA);
+
+        use Data::Dumper;
+        print Dumper $recognizer->value;
+
+        sub do_what_I_mean {
+            shift;
+            my @children = grep defined && length, @_;
+            return scalar @children > 1 ? \@children : shift @children;
+        }
+
+        __DATA__
+        hello !world OR "he hehe hee" ( foo OR !boo )
+
+WARNING
+    This is experimental module in alpha stage I cooked during weekend to
+    simplify and speed up writing marpa grammar and lexer for vCards.
+
+    I'm publishing it to collect feedback and because I believe it can be
+    very useful to people experimenting with Marpa.
+
+DESCRIPTION
+    This module helps you start with Marpa::XS parser and simplifies lexing.
+
+TUTORIAL
+  Where to start
+    Here is template you can start a new parser from:
+
+        use strict; use warnings;
+
+        use Marpa::XS;
+        use Marpa::Simple::Lexer;
+
+        my $grammar = Marpa::XS::Grammar->new( {
+            start   => 'query',
+            rules   => [
+                [ query => [qw(something)] ],
+            ],
+            lhs_terminals => 0,
+        });
+        $grammar->precompute;
+        my $recognizer = Marpa::XS::Recognizer->new( { grammar => $grammar } );
+        my $lexer = Marpa::Simple::Lexer->new(
+            recognizer => $recognizer,
+            tokens => {},
+            debug => 1,
+        );
+
+        $lexer->recognize(\*DATA);
+
+        __DATA__
+        hello !world "he hehe hee" ( foo OR boo )
+
+    It's a working program that prints the following output:
+
+        Expect token(s): 'something'
+        Buffer start: hello !world "he heh...
+        Unknown token: 'something'
+        Unexpected message, type "parse exhausted" at ...
+
+    First line says that at this moment parser expects 'something'. It's
+    going to look for it in the following text (second line). Third line
+    says that lexer doesn't know anything about 'something'. It's not a
+    surprise that parsing fails.
+
+    What can we do with 'something'? We either put it into grammar or lexer.
+    In above example it's pretty obvious that it's gonna be in the grammar.
+
+  Put some grammar
+        rules   => [
+            # over query is a sequence of conditions separated with OPs
+            {
+                lhs => 'query', rhs => [qw(condition)],
+                min => 1, separator => 'OP', proper => 1, keep => 1,
+            },
+            # each condition can be one of the following
+            [ condition => [qw(word)] ],
+            [ condition => [qw(quoted)] ],
+            [ condition => [qw(OPEN-PAREN SPACE? query SPACE? CLOSE-PAREN)] ],
+            [ condition => [qw(NOT condition)] ],
+        ],
+
+    Our program works and gives us helpful results:
+
+        Expect token(s): 'word', 'quoted', 'OPEN-PAREN', 'NOT'
+        Buffer start: hello !world OR "he ...
+        Unknown token: 'word'
+        ...
+
+  First token
+        tokens => {
+            word => qr{\w+},
+        },
+
+    Ouput:
+
+        Expect token(s): 'word', 'quoted', 'OPEN-PAREN', 'NOT'
+        Buffer start: hello !world OR "he ...
+        Token 'word' matched hello
+        Unknown token: 'quoted'
+        Unknown token: 'OPEN-PAREN'
+        Unknown token: 'NOT'
+        Expect token(s): 'OP'
+
+    Congrats! First token matched. More tokens:
+
+        use Regexp::Common qw /delimited/;
+
+        my $lexer = Marpa::Simple::Lexer->new(
+            recognizer => $recognizer,
+            tokens => {
+                word => qr{\b\w+\b},
+                OP => qr{\s+|\s+OR\s+},
+                NOT => '!',
+                'OPEN-PAREN' => '(',
+                'CLOSE-PAREN' => ')',
+                'quoted' => qr[$RE{delimited}{-delim=>qq{\'\"}}],
+            },
+            debug => 1,
+        );
+
+  Tokens matching empty string
+    You can not have such. In our example grammar we have 'SPACE?' that is
+    optional. You could try to use "qr{\s*}", but lexer would die with an
+    error. Instead use the following:
+
+        rules   => [
+            ...
+            [ 'SPACE?' => [] ],
+            [ 'SPACE?' => [qw(SPACE)] ],
+        ],
+        ...
+        tokens => {
+            ...
+            'SPACE'       => qr{\s+},
+        },
+
+  Lexer's ambiguity
+    This module uses marpa's alternative input model what allows you to
+    describe ambiguous lexer, e.g. several tokens starts at the same point.
+    This is not always give you multiple results, but allows to start faster
+    and keep improving tokens and grammar to avoid unnecessary ambiguity
+    cases.
+
+  Longest token match
+    Let's look at string "x OR y". It should match "word OP word", but it
+    matches "word OP word OP word". This happens because of how we defined
+    OP token. If we change it to "qr{\s+OR\s+|\s+}" then results are better.
+
+  Filtering input
+    Input can be filtered with a callback by providing input_filter
+    argument:
+
+        my $lexer = Marpa::Simple::Lexer->new(
+            recognizer => $recognizer,
+            input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
+            ...
+        );
+
+  Actions
+    The simplest possible action that can produce some results:
+
+        my $grammar = Marpa::XS::Grammar->new( {
+            actions => 'main',
+            default_action => 'do_what_I_mean',
+            ...
+        );
+        sub do_what_I_mean {
+            shift;
+            my @children = grep defined && length, @_;
+            return @children > 1 ? \@children : shift @children;
+        }
+        ...
+
+        $lexer->recognize(\*DATA);
+
+        use Data::Dumper;
+        print Dumper $recognizer->value;
+
+  Token's values
+    Values of tokens are set to whatever token matches in the input, however
+    for regexp tokens you can use $1 to set value. Here is part of data from
+    our example:
+
+        '(',
+        ' ',
+        [ ...
+
+    Paren is followed by optional space. We can change SPACE token:
+
+            'SPACE'       => qr{\s+()},
+
+    New token captures empty string into $1 and it skipped by default
+    action.
+
+    Similar trick can be used with OP, but to cature 'OR' without spaces:
+
+            OP            => qr{\s+(OR)\s+|\s+},
+
+  What's next
+    Add more actions. Experiment. Enjoy.
+
+AUTHOR
+    Ruslan Zakirov <Ruslan.Zakirov@gmail.com>
+
+LICENSE
+    Under the same terms as perl itself.
+

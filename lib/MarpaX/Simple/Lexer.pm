@@ -2,12 +2,12 @@ use 5.010;
 use strict;
 use warnings;
 
-package Marpa::Simple::Lexer;
+package MarpaX::Simple::Lexer;
 our $VERSION = '0.01';
 
 =head1 NAME
 
-Marpa::Simple::Lexer - simplify lexing with Marpa
+MarpaX::Simple::Lexer - simplify lexing for Marpa parser
 
 =head1 SYNOPSIS
 
@@ -17,7 +17,7 @@ Marpa::Simple::Lexer - simplify lexing with Marpa
     use lib 'lib/';
 
     use Marpa::XS;
-    use Marpa::Simple::Lexer;
+    use MarpaX::Simple::Lexer;
 
     my $grammar = Marpa::XS::Grammar->new( {
         actions => 'main',
@@ -43,7 +43,7 @@ Marpa::Simple::Lexer - simplify lexing with Marpa
 
     use Regexp::Common qw /delimited/;
 
-    my $lexer = Marpa::Simple::Lexer->new(
+    my $lexer = MarpaX::Simple::Lexer->new(
         recognizer => $recognizer,
         input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
         tokens => {
@@ -93,7 +93,7 @@ Here is template you can start a new parser from:
     use strict; use warnings;
 
     use Marpa::XS;
-    use Marpa::Simple::Lexer;
+    use MarpaX::Simple::Lexer;
 
     my $grammar = Marpa::XS::Grammar->new( {
         start   => 'query',
@@ -104,7 +104,7 @@ Here is template you can start a new parser from:
     });
     $grammar->precompute;
     my $recognizer = Marpa::XS::Recognizer->new( { grammar => $grammar } );
-    my $lexer = Marpa::Simple::Lexer->new(
+    my $lexer = MarpaX::Simple::Lexer->new(
         recognizer => $recognizer,
         tokens => {},
         debug => 1,
@@ -173,7 +173,7 @@ Congrats! First token matched. More tokens:
 
     use Regexp::Common qw /delimited/;
 
-    my $lexer = Marpa::Simple::Lexer->new(
+    my $lexer = MarpaX::Simple::Lexer->new(
         recognizer => $recognizer,
         tokens => {
             word => qr{\b\w+\b},
@@ -223,7 +223,7 @@ results are better.
 Input can be filtered with a callback by providing input_filter
 argument:
 
-    my $lexer = Marpa::Simple::Lexer->new(
+    my $lexer = MarpaX::Simple::Lexer->new(
         recognizer => $recognizer,
         input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
         ...

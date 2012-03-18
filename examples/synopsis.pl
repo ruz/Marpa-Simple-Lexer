@@ -4,7 +4,7 @@ use warnings;
 use lib 'lib/';
 
 use Marpa::XS;
-use Marpa::Simple::Lexer;
+use MarpaX::Simple::Lexer;
 
 my $grammar = Marpa::XS::Grammar->new( {
     actions => 'main',
@@ -30,7 +30,7 @@ my $recognizer = Marpa::XS::Recognizer->new( { grammar => $grammar } );
 
 use Regexp::Common qw /delimited/;
 
-my $lexer = Marpa::Simple::Lexer->new(
+my $lexer = MarpaX::Simple::Lexer->new(
     recognizer => $recognizer,
     input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
     tokens => {

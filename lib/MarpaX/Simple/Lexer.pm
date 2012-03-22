@@ -218,6 +218,36 @@ but it matches "word OP word OP word". This happens because of
 how we defined OP token. If we change it to C<qr{\s+OR\s+|\s+}> then
 results are better.
 
+=head2 Input buffer
+
+By default lexer reads data from the input stream in chunks into
+a buffer and grow the buffer only when it's shorter than
+C<min_buffer> bytes. By default it's 4kb. This is good for memory
+consuption, but it can result in troubles when a terminal may be
+larger than a buffer. For example consider a document with embedded
+base64 encoded binary files. You can use several solutions to
+workaround this problem.
+
+Read everything into memory. Simplest way out. It's not default
+value to avoid encouragement:
+
+    my $lexer = MarpaX::Simple::Lexer->new(
+        min_buffer => 0,
+        ...
+    );
+
+Use larger buffer:
+
+    my $lexer = MarpaX::Simple::Lexer->new(
+        min_buffer => 10*1024*1024, # 10MB
+        ...
+    );
+
+Adjust grammar. In most cases you can split long terminal into
+multiple terminals with limitted length. For example:
+
+     { lhs => 'text', rhs => 'text-chunk', min => 1 }
+
 =head2 Filtering input
 
 Input can be filtered with a callback by providing input_filter

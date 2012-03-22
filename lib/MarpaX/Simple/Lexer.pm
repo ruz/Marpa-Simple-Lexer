@@ -243,10 +243,25 @@ Use larger buffer:
         ...
     );
 
+Use built in protection from such cases. When a regular expression
+token matches whole buffer and buffer still can grow then lexer
+grows buffer and retries. This allows you to write a regular
+expression that matches till end of token or end of buffer (C<$>).
+Note that this may result in token incomplete match if input ends
+right in the middle of it.
+
+    tokens => {
+        ...
+        'text-paragraph' => qr{\w[\w\s]+?(?:\n\n|$)},
+    },
+
 Adjust grammar. In most cases you can split long terminal into
 multiple terminals with limitted length. For example:
 
-     { lhs => 'text', rhs => 'text-chunk', min => 1 }
+    rules   => [
+        ...
+        { lhs => 'text', rhs => 'text-chunk', min => 1 },
+    ],
 
 =head2 Filtering input
 

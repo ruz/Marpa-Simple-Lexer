@@ -311,7 +311,7 @@ sub recognize {
     my ($RE, $CHAR, $STRING) = @{$self}{qw(RE CHAR STRING)};
 
     my $buffer = '';
-    my $min_buffer = $self->{'min_buffer'} // 4*1024*1024;
+    my $min_buffer = $self->{'min_buffer'} // 4*1024;
     my $buffer_can_grow = 1;
     my $grow_buffer = sub {
         local $/ = \($min_buffer*2);

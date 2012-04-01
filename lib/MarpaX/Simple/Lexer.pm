@@ -331,14 +331,6 @@ sub new {
 sub init {
     my $self = shift;
 
-    $self->init_tokens;
-
-    return $self;
-}
-
-sub init_tokens {
-    my $self = shift;
-
     my $tokens = $self->{'tokens'};
     while ( my ($token, $match) = each %$tokens ) {
         my $type = ref $match ? 'RE'
@@ -346,6 +338,8 @@ sub init_tokens {
             : 'STRING';
         $self->{ $type }{ $token } = $match;
     }
+
+    return $self;
 }
 
 sub recognize {

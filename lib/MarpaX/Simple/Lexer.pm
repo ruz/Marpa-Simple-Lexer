@@ -387,6 +387,7 @@ sub recognize {
             if $self->{'debug'};
 
         my $first_char = substr $$buffer, 0, 1;
+        my $at_least_on_match = 0;
         foreach my $token ( @$expected ) {
             REDO:
 
@@ -426,12 +427,21 @@ sub recognize {
                 if $self->{'debug'};
 
             $rec->alternative( $token, $match, $length );
+            $at_least_on_match = 1;
         }
         say STDERR '' if $self->{'debug'};
 
         my $skip = 1;
         unless ( $rec->earleme_complete ) {
-            die "exhausted" if $rec->exhausted;
+            if ( $rec->exhausted ) {
+                # if didn't find match and parser is exhausted
+                # then we lost
+                die "exhausted" unless $at_least_on_match;
+
+                # otherwise we won
+                $rec->end_input;
+                return $rec;
+            }
             $skip++ while !$rec->earleme_complete;
             $skip++;
         }

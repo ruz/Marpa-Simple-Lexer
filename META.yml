@@ -19,6 +19,7 @@ no_index:
   directory:
     - examples
     - inc
+    - t
 requires:
   Marpa::XS: 0
   perl: 5.10.0

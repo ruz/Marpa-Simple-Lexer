@@ -43,9 +43,8 @@ MarpaX::Simple::Lexer - simplify lexing for Marpa parser
 
     use Regexp::Common qw /delimited/;
 
-    my $lexer = MarpaX::Simple::Lexer->new(
+    my $lexer = MyLexer->new(
         recognizer => $recognizer,
-        input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
         tokens => {
             word          => qr{\b\w+\b},
             'quoted'      => qr[$RE{delimited}{-delim=>qq{\'\"}}],
@@ -69,6 +68,17 @@ MarpaX::Simple::Lexer - simplify lexing for Marpa parser
         return scalar @children > 1 ? \@children : shift @children;
     }
 
+    package MyLexer;
+    use base 'MarpaX::Simple::Lexer';
+
+    sub grow_buffer {
+        my $self = shift;
+        my $rv = $self->SUPER::grow_buffer( @_ );
+        ${ $self->buffer } =~ s/[\r\n]+//g;
+        return $rv;
+    }
+
+    package main;
     __DATA__
     hello !world OR "he hehe hee" ( foo OR !boo )
 
@@ -265,14 +275,17 @@ multiple terminals with limitted length. For example:
 
 =head2 Filtering input
 
-Input can be filtered with a callback by providing input_filter
-argument:
+Input can be filtered with subclassing grow_buffer method:
 
-    my $lexer = MarpaX::Simple::Lexer->new(
-        recognizer => $recognizer,
-        input_filter => sub { ${$_[0]} =~ s/[\r\n]+//g },
-        ...
-    );
+    package MyLexer;
+    use base 'MarpaX::Simple::Lexer';
+
+    sub grow_buffer {
+        my $self = shift;
+        my $rv = $self->SUPER::grow_buffer( @_ );
+        ${ $self->buffer } =~ s/[\r\n]+//g;
+        return $rv;
+    }
 
 =head2 Actions
 
@@ -339,7 +352,19 @@ sub init {
         $self->{ $type }{ $token } = $match;
     }
 
+    $self->{'min_buffer'} //= 4*1024;
+    $self->{'buffer'} //= '';
+
     return $self;
+}
+
+sub buffer { \$_[0]->{'buffer'} }
+
+sub grow_buffer {
+    my $self = shift;
+    local $/ = \($self->{'min_buffer'}*2);
+    $self->{'buffer'} .= readline($_[0]) // return 0;
+    return 1 && $self->{'min_buffer'};
 }
 
 sub recognize {
@@ -349,28 +374,19 @@ sub recognize {
     my $rec = $self->{'recognizer'};
     my ($RE, $CHAR, $STRING) = @{$self}{qw(RE CHAR STRING)};
 
-    my $buffer = '';
-    my $min_buffer = $self->{'min_buffer'} // 4*1024;
-    my $buffer_can_grow = 1;
-    my $grow_buffer = sub {
-        local $/ = \($min_buffer*2);
-        my $pos = length $buffer;
-        $buffer .= <$fh> // ($buffer_can_grow = '');
-        $self->{'input_filter'}->(\$buffer, $pos)
-            if $self->{'input_filter'};
-    };
+    my $buffer = $self->buffer;
+    my $buffer_can_grow = $self->grow_buffer( $fh );
 
-    $grow_buffer->();
-    while ( length $buffer ) {
+    while ( length $$buffer ) {
         my $expected = $rec->terminals_expected;
         die "failed to parse" unless @$expected;
         say STDERR "Expect token(s): ". join(', ', map "'$_'", @$expected)
             if $self->{'debug'};
 
-        say STDERR "Buffer start: ". $self->str_first_chars( $buffer ) .'...'
+        say STDERR "Buffer start: ". $self->dump_buffer .'...'
             if $self->{'debug'};
 
-        my $first_char = substr $buffer, 0, 1;
+        my $first_char = substr $$buffer, 0, 1;
         foreach my $token ( @$expected ) {
             REDO:
 
@@ -382,13 +398,13 @@ sub recognize {
             elsif ( defined( $what = $STRING->{ $token } ) ) {
                 $length = length $what;
                 ($matched, $match) = (1, $what)
-                    if $what eq substr $buffer, 0, $length;
+                    if $what eq substr $$buffer, 0, $length;
             }
             elsif ( defined( $what = $RE->{ $token } ) ) {
-                if ( $buffer =~ /^($what)/ ) {
+                if ( $$buffer =~ /^($what)/ ) {
                     ($matched, $match, $length) = (1, $2//$1, length $1);
-                    if ( $length == length $buffer && $buffer_can_grow ) {
-                        $grow_buffer->();
+                    if ( $length == length $$buffer && $buffer_can_grow ) {
+                        $buffer_can_grow = $self->grow_buffer( $fh );
                         goto REDO;
                     }
                 }
@@ -399,15 +415,14 @@ sub recognize {
             }
 
             unless ( $matched ) {
-                say STDERR "No '$token' in ". $self->str_first_chars( $buffer )
-                    if $self->{'debug'};
+                say STDERR "No '$token' in ". $self->dump_buffer if $self->{'debug'};
                 next;
             }
 
             unless ( $length ) {
                 die "Token '$token' matched empty string. This is not supported.";
             }
-            say STDERR "Token '$token' matched ". $self->str_first_chars( $buffer, $length )
+            say STDERR "Token '$token' matched ". $self->dump_buffer( $length )
                 if $self->{'debug'};
 
             $rec->alternative( $token, $match, $length );
@@ -420,18 +435,18 @@ sub recognize {
             $skip++ while !$rec->earleme_complete;
             $skip++;
         }
-        substr $buffer, 0, $skip, '';
-        $grow_buffer->() if $buffer_can_grow && $min_buffer > length $buffer;
+        substr $$buffer, 0, $skip, '';
+        $buffer_can_grow = $self->grow_buffer( $fh )
+            if $buffer_can_grow && $self->{'min_buffer'} > length $$buffer;
     }
     $rec->end_input;
     return $rec;
 }
 
-sub str_first_chars {
+sub dump_buffer {
     my $self = shift;
-    my $str = shift;
     my $show = shift // 20;
-    $str = substr $str, 0, $show if $show;
+    my $str = $show? substr( $self->{'buffer'}, 0, $show ) : $self->{'buffer'};
     return $str =~ s/([^\x20-\x7E])/'\\x{'. hex( ord $1 ) .'}' /gre;
 }
 

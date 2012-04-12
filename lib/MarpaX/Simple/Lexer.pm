@@ -435,6 +435,7 @@ sub recognize {
             while ( !(my $status = eval { $rec->earleme_complete }) ) {
                 unless ( defined $status ) {
                     substr $$buffer, 0, $skip, '';
+                    $rec->end_input;
                     return $rec;
                 }
                 $skip++;
